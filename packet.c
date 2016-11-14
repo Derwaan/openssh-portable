@@ -2178,7 +2178,7 @@ ssh_packet_disconnect(struct ssh *ssh, const char *fmt,...)
 
 #ifdef MPTCP_GET_SUB_IDS
 
-void
+static void
 mptcp_switch_debug(char* content) {
 	debug("[MPTCP] %s", content);
 }
@@ -2187,7 +2187,7 @@ mptcp_switch_debug(char* content) {
  * Create a new mptcp_switch_heuristic with
  * reset value.
  */
-struct mptcp_switch_heuristic *
+static struct mptcp_switch_heuristic *
 mptcp_switch_heuristic_create(unsigned int reset) {
 	unsigned int optlen;
 	struct mptcp_switch_heuristic *heuristic;
@@ -2204,7 +2204,7 @@ mptcp_switch_heuristic_create(unsigned int reset) {
 /*
  * Reset the heuristic.
  */
-void
+static void
 mptcp_switch_heuristic_reset(struct mptcp_switch_heuristic *heuristic) {
 	heuristic->value = heuristic->reset;
 	mptcp_switch_debug("Reset the heuristic");
@@ -2213,7 +2213,7 @@ mptcp_switch_heuristic_reset(struct mptcp_switch_heuristic *heuristic) {
 /*
  * Check if the heuristic's condition is filled.
  */
-int
+static int
 mptcp_switch_heuristic_check(struct mptcp_switch_heuristic *heuristic) {
 	mptcp_switch_debug("Check heuristic");
 	if(heuristic->value == 0)
@@ -2224,7 +2224,7 @@ mptcp_switch_heuristic_check(struct mptcp_switch_heuristic *heuristic) {
 /*
  * Apply a new value to the heuristic.
  */
-void
+static void
 mptcp_switch_heuristic_apply(struct mptcp_switch_heuristic *heuristic, unsigned int new_value) {
 	heuristic->value = new_value;
 	mptcp_switch_debug("Change the value of the heuristic");
@@ -2233,7 +2233,7 @@ mptcp_switch_heuristic_apply(struct mptcp_switch_heuristic *heuristic, unsigned 
 /*
  * Apply a new value to the heuristic.
  */
-void
+static void
 mptcp_switch_heuristic_change(struct mptcp_switch_heuristic *heuristic, unsigned int new_reset) {
 	heuristic->reset = new_reset;
 	mptcp_switch_debug("Change the reset value of the heuristic");
@@ -2242,7 +2242,7 @@ mptcp_switch_heuristic_change(struct mptcp_switch_heuristic *heuristic, unsigned
 /*
  * Switch the MPTCP subflow if the heuristic is filled.
  */
-void
+static void
 mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[]) {
 	int i;
 	for(i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {

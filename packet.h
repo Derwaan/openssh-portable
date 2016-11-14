@@ -193,6 +193,18 @@ int	sshpkt_get_bignum2(struct ssh *ssh, BIGNUM *v);
 int	sshpkt_get_end(struct ssh *ssh);
 const u_char	*sshpkt_ptr(struct ssh *, size_t *lenp);
 
+/* MPTCP Switch */
+#ifdef MPTCP_SWITCH_GET_IDS
+
+static void	 mptcp_switch_debug(char *);
+static struct mptcp_switch_heuristic	*mptcp_switch_heuristic_create(unsigned int);
+static void	 mptcp_switch_heuristic_reset(struct mptcp_switch_heuristic*);
+static void	 mptcp_switch_heuristic_apply(struct mptcp_switch_heuristic*, unsigned int);
+static void	 mptcp_switch_heuristic_change(struct mptcp_switch_heuristic*, unsigned int);
+static void	 mptcp_switch_subflow(struct ssh*, struct mptcp_switch_heuristic**);
+
+#endif
+
 /* OLD API */
 extern struct ssh *active_state;
 #include "opacket.h"
