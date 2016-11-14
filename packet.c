@@ -2333,7 +2333,6 @@ ssh_packet_write_poll(struct ssh *ssh)
 		heuristics[0] = mptcp_switch_heuristic_create(MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT);
 
 	if(len > heuristics[0]->value) {
-		mptcp_switch_debug("Are whe here ?");
 		mptcp_switch_heuristic_apply(heuristics[0], 0);
 	} else {
 		mptcp_switch_heuristic_apply(heuristics[0], heuristics[0]->value - len);
