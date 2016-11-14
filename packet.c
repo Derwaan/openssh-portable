@@ -238,7 +238,7 @@ struct mptcp_switch_heuristic {
 #define MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT 100
 #define MPTCP_SWITCH_HEURISTIC_COUNT 1
 
-struct mptcp_switch_heuristic *heuristics[MPTPC_SWITCH_HEURISTIC_COUNT];
+struct mptcp_switch_heuristic *heuristics[MPTCP_SWITCH_HEURISTIC_COUNT];
 
 #endif
 
@@ -2245,7 +2245,7 @@ mptcp_switch_heuristic_change(struct mptcp_switch_heuristic *heuristic, unsigned
 void
 mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[]) {
 	int i;
-	for(i = 0; i < MPTPCP_SWITCH_HEURISTIC_COUNT; i++) {
+	for(i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
 		if(mptcp_switch_heuristic_check(heuristics[i]))
 			return;
 	}
@@ -2253,7 +2253,7 @@ mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[
 	struct session_state *state = ssh->state;
 
 	// Reset the heuristic size
-	for(i = 0; i < MPTPCP_SWITCH_HEURISTIC_COUNT; i++) {
+	for(i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
 		mptcp_switch_heuristic_reset(heuristics[i]);
 	}
 
@@ -2329,10 +2329,11 @@ ssh_packet_write_poll(struct ssh *ssh)
 			return r;
 	}
 #ifdef MPTCP_GET_SUB_IDS
-	if(heuristics == NULL)
+	if(heuristics[0] == NULL)
 		heuristics[0] = mptcp_switch_heuristic_create(MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT);
 
 	if(len > heuristics[0]->value) {
+		mptcp_switch_debug("Are whe here ?");
 		mptcp_switch_heuristic_apply(heuristics[0], 0);
 	} else {
 		mptcp_switch_heuristic_apply(heuristics[0], heuristics[0]->value - len);
