@@ -46,6 +46,8 @@
 # include <sys/time.h>
 #endif
 
+#include <linux/tcp.h>
+
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
@@ -225,6 +227,20 @@ struct session_state {
 
 	TAILQ_HEAD(, packet) outgoing;
 };
+
+#ifdef MPTCP_GET_SUB_IDS
+struct mptcp_switch_heuristic {
+	unsigned int value;
+	unsigned int reset;
+};
+
+/* TODO Allow to change the reset value with command-lines options. */
+#define MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT 100
+#define MPTCP_SWITCH_HEURISTIC_COUNT 1
+
+struct mptcp_switch_heuristic *heuristics[MPTCP_SWITCH_HEURISTIC_COUNT];
+
+#endif
 
 struct ssh *
 ssh_alloc_session_state(void)
@@ -2160,6 +2176,144 @@ ssh_packet_disconnect(struct ssh *ssh, const char *fmt,...)
 	cleanup_exit(255);
 }
 
+#ifdef MPTCP_GET_SUB_IDS
+
+static void
+mptcp_switch_debug(char* content)
+{
+	debug("[MPTCP] %s", content);
+}
+
+/*
+ * Create a new mptcp_switch_heuristic with
+ * reset value.
+ */
+static struct mptcp_switch_heuristic *
+mptcp_switch_heuristic_create(unsigned int reset)
+{
+	unsigned int optlen;
+	struct mptcp_switch_heuristic *heuristic;
+
+	optlen = sizeof(struct mptcp_switch_heuristic);
+	heuristic = malloc(optlen);
+	heuristic->reset = reset;
+	heuristic->value = reset;
+
+	mptcp_switch_debug("Creation of a new heuristic");
+
+	return heuristic;
+}
+
+/*
+ * Reset the heuristic.
+ */
+static void
+mptcp_switch_heuristic_reset(struct mptcp_switch_heuristic *heuristic)
+{
+	heuristic->value = heuristic->reset;
+	mptcp_switch_debug("Reset the heuristic");
+}
+
+/*
+ * Check if the heuristic's condition is filled.
+ */
+static int
+mptcp_switch_heuristic_check(struct mptcp_switch_heuristic *heuristic)
+{
+	mptcp_switch_debug("Check heuristic");
+	return heuristic->value != 0;
+}
+
+/*
+ * Apply a new value to the heuristic.
+ */
+static void
+mptcp_switch_heuristic_apply(struct mptcp_switch_heuristic *heuristic, unsigned int new_value)
+{
+	heuristic->value = new_value;
+	mptcp_switch_debug("Change the value of the heuristic");
+}
+
+/*
+ * Apply a new value to the heuristic.
+ */
+static void
+mptcp_switch_heuristic_change(struct mptcp_switch_heuristic *heuristic, unsigned int new_reset)
+{
+	heuristic->reset = new_reset;
+	mptcp_switch_debug("Change the reset value of the heuristic");
+}
+
+/*
+ * Switch the MPTCP subflow if the heuristic is filled.
+ */
+static void
+mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[])
+{
+	int i, old_id;
+	unsigned int optlen;
+	struct session_state *state = ssh->state;
+	struct mptcp_sub_ids* ids;
+	struct mptcp_sub_tuple *open_sub;
+	struct sockaddr_in* addr;
+	struct mptcp_close_sub_id *close_sub;
+
+	for (i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
+		if(mptcp_switch_heuristic_check(heuristics[i]))
+			return;
+	}
+
+	// Reset the heuristic size
+	for (i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
+		mptcp_switch_heuristic_reset(heuristics[i]);
+	}
+
+	// Get old id of the MPTCP subflow
+	optlen = 64;
+	ids = malloc(optlen);
+
+	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_GET_SUB_IDS, ids, &optlen) == -1)
+		return;
+
+	old_id = ids->sub_status[0].id;
+	free(ids);
+	mptcp_switch_debug("Get old subflow");
+
+	// Open new MPTCP subflow
+	optlen = sizeof(struct mptcp_sub_tuple) + 2 * sizeof(struct sockaddr_in);
+	open_sub = malloc(optlen);
+	open_sub->id = 0;
+
+	addr = (struct sockaddr_in *) &open_sub->addrs[0];
+	addr->sin_family = AF_INET;
+	addr->sin_port = 0; // Random port
+	inet_pton(AF_INET, ssh->local_ipaddr, &addr->sin_addr);
+
+	addr++;
+	addr->sin_family = AF_INET;
+	addr->sin_port = htons(ssh->remote_port); 
+	inet_pton(AF_INET, ssh->remote_ipaddr, &addr->sin_addr);
+
+	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_OPEN_SUB_TUPLE, open_sub, &optlen) == -1)
+		return;
+
+	free(open_sub);
+	mptcp_switch_debug("Create new subflow");
+
+	// Remove old MPTCP subflow
+	optlen = sizeof(struct mptcp_close_sub_id);
+	close_sub = malloc(optlen);
+	close_sub->id = old_id;
+
+	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_CLOSE_SUB_ID, close_sub, &optlen) == -1)
+		return;
+
+	free(close_sub);
+	mptcp_switch_debug("Remove old subflow");
+}
+
+#endif
+
 /*
  * Checks if there is any buffered output, and tries to write some of
  * the output.
@@ -2185,6 +2339,17 @@ ssh_packet_write_poll(struct ssh *ssh)
 		if ((r = sshbuf_consume(state->output, len)) != 0)
 			return r;
 	}
+#ifdef MPTCP_GET_SUB_IDS
+	if(heuristics[0] == NULL)
+		heuristics[0] = mptcp_switch_heuristic_create(MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT);
+
+	if(len > heuristics[0]->value) {
+		mptcp_switch_heuristic_apply(heuristics[0], 0);
+	} else {
+		mptcp_switch_heuristic_apply(heuristics[0], heuristics[0]->value - len);
+	}
+	mptcp_switch_subflow(ssh, heuristics);
+#endif
 	return 0;
 }
 
