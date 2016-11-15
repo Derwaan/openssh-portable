@@ -2179,7 +2179,8 @@ ssh_packet_disconnect(struct ssh *ssh, const char *fmt,...)
 #ifdef MPTCP_GET_SUB_IDS
 
 static void
-mptcp_switch_debug(char* content) {
+mptcp_switch_debug(char* content)
+{
 	debug("[MPTCP] %s", content);
 }
 
@@ -2188,9 +2189,11 @@ mptcp_switch_debug(char* content) {
  * reset value.
  */
 static struct mptcp_switch_heuristic *
-mptcp_switch_heuristic_create(unsigned int reset) {
+mptcp_switch_heuristic_create(unsigned int reset)
+{
 	unsigned int optlen;
 	struct mptcp_switch_heuristic *heuristic;
+
 	optlen = sizeof(struct mptcp_switch_heuristic);
 	heuristic = malloc(optlen);
 	heuristic->reset = reset;
@@ -2205,7 +2208,8 @@ mptcp_switch_heuristic_create(unsigned int reset) {
  * Reset the heuristic.
  */
 static void
-mptcp_switch_heuristic_reset(struct mptcp_switch_heuristic *heuristic) {
+mptcp_switch_heuristic_reset(struct mptcp_switch_heuristic *heuristic)
+{
 	heuristic->value = heuristic->reset;
 	mptcp_switch_debug("Reset the heuristic");
 }
@@ -2214,18 +2218,18 @@ mptcp_switch_heuristic_reset(struct mptcp_switch_heuristic *heuristic) {
  * Check if the heuristic's condition is filled.
  */
 static int
-mptcp_switch_heuristic_check(struct mptcp_switch_heuristic *heuristic) {
+mptcp_switch_heuristic_check(struct mptcp_switch_heuristic *heuristic)
+{
 	mptcp_switch_debug("Check heuristic");
-	if(heuristic->value == 0)
-		return 0;
-	return 1;
+	return heuristic->value != 0;
 }
 
 /*
  * Apply a new value to the heuristic.
  */
 static void
-mptcp_switch_heuristic_apply(struct mptcp_switch_heuristic *heuristic, unsigned int new_value) {
+mptcp_switch_heuristic_apply(struct mptcp_switch_heuristic *heuristic, unsigned int new_value)
+{
 	heuristic->value = new_value;
 	mptcp_switch_debug("Change the value of the heuristic");
 }
@@ -2234,7 +2238,8 @@ mptcp_switch_heuristic_apply(struct mptcp_switch_heuristic *heuristic, unsigned 
  * Apply a new value to the heuristic.
  */
 static void
-mptcp_switch_heuristic_change(struct mptcp_switch_heuristic *heuristic, unsigned int new_reset) {
+mptcp_switch_heuristic_change(struct mptcp_switch_heuristic *heuristic, unsigned int new_reset)
+{
 	heuristic->reset = new_reset;
 	mptcp_switch_debug("Change the reset value of the heuristic");
 }
@@ -2243,34 +2248,38 @@ mptcp_switch_heuristic_change(struct mptcp_switch_heuristic *heuristic, unsigned
  * Switch the MPTCP subflow if the heuristic is filled.
  */
 static void
-mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[]) {
-	int i;
-	for(i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
+mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[])
+{
+	int i, old_id;
+	unsigned int optlen;
+	struct session_state *state = ssh->state;
+	struct mptcp_sub_ids* ids;
+	struct mptcp_sub_tuple *open_sub;
+	struct sockaddr_in* addr;
+	struct mptcp_close_sub_id *close_sub;
+
+	for (i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
 		if(mptcp_switch_heuristic_check(heuristics[i]))
 			return;
 	}
-	
-	struct session_state *state = ssh->state;
 
 	// Reset the heuristic size
-	for(i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
+	for (i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
 		mptcp_switch_heuristic_reset(heuristics[i]);
 	}
 
 	// Get old id of the MPTCP subflow
-	unsigned int optlen;
-	struct mptcp_sub_ids* ids;
 	optlen = 64;
 	ids = malloc(optlen);
-	if(getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_GET_SUB_IDS, ids, &optlen) == -1) 
+
+	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_GET_SUB_IDS, ids, &optlen) == -1)
 		return;
-	int old_id = ids->sub_status[0].id;
+
+	old_id = ids->sub_status[0].id;
 	free(ids);
 	mptcp_switch_debug("Get old subflow");
 
 	// Open new MPTCP subflow
-	struct mptcp_sub_tuple *open_sub;
-	struct sockaddr_in* addr;
 	optlen = sizeof(struct mptcp_sub_tuple) + 2 * sizeof(struct sockaddr_in);
 	open_sub = malloc(optlen);
 	open_sub->id = 0;
@@ -2285,18 +2294,20 @@ mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[
 	addr->sin_port = htons(ssh->remote_port); 
 	inet_pton(AF_INET, ssh->remote_ipaddr, &addr->sin_addr);
 
-	if(getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_OPEN_SUB_TUPLE, open_sub, &optlen) == -1)
+	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_OPEN_SUB_TUPLE, open_sub, &optlen) == -1)
 		return;
+
 	free(open_sub);
 	mptcp_switch_debug("Create new subflow");
 
 	// Remove old MPTCP subflow
-	struct mptcp_close_sub_id *close_sub;
 	optlen = sizeof(struct mptcp_close_sub_id);
 	close_sub = malloc(optlen);
 	close_sub->id = old_id;
-	if(getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_CLOSE_SUB_ID, close_sub, &optlen) == -1)
+
+	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_CLOSE_SUB_ID, close_sub, &optlen) == -1)
 		return;
+
 	free(close_sub);
 	mptcp_switch_debug("Remove old subflow");
 }
