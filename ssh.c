@@ -955,7 +955,34 @@ main(int ac, char **av)
 		}
 		ac--, av++;
 	}
+#ifdef MPCTP_GET_SUB_IDS
+	struct option longopt = {
+		{"mptcp=false",no_argument,&options.want_mptcp,0},
+		{"nbytes",optional_argument,&options.mptc_switch_nBytes,500},
+		{"time_subflow",optional_argument,&options.mptcp_switch_time,20},
+		{0,0,0,0}
+	};
 
+	while((c = getopt_long(ac,av,NULL,longopt,NULL)) != -1) {
+		switch(c) {
+		case 0:
+			break;
+		case '?':
+			debug("Bad option parsed. Ignored");
+			break;
+		}
+	}
+
+	if(options.nBytes_change <= 0) {
+		debug("Bad argument for nbytes (<= 0). Using default value (500)");
+		options.mptcp_switch_nBytes = 500;
+	}
+	
+	if(options.timeout_sublfow <= 0) {
+		debug("Bad argument for time_subflow. Using default value (20)");
+		options.mptcp_switch_time = 20;
+	}
+#endif
 	/* Check that we got a host name. */
 	if (!host)
 		usage();

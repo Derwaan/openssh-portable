@@ -87,6 +87,7 @@
 #include "packet.h"
 #include "ssherr.h"
 #include "sshbuf.h"
+#include "readconf.h"
 
 #ifdef PACKET_DEBUG
 #define DBG(x) x
@@ -95,6 +96,9 @@
 #endif
 
 #define PACKET_MAX_SIZE (256 * 1024)
+
+/* Importing options */
+extern Options options;
 
 struct packet_state {
 	u_int32_t seqnr;
@@ -233,6 +237,10 @@ struct mptcp_switch_heuristic {
 	unsigned int value;
 	unsigned int reset;
 };
+
+typedef enum {
+	BYTECOUNT = 0, /* Nombre de byte envoyé avant de changer de flux */
+} mptcp_switch_options;
 
 /* TODO Allow to change the reset value with command-lines options. */
 #define MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT 100
@@ -2341,7 +2349,7 @@ ssh_packet_write_poll(struct ssh *ssh)
 	}
 #ifdef MPTCP_GET_SUB_IDS
 	if(heuristics[0] == NULL)
-		heuristics[0] = mptcp_switch_heuristic_create(MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT);
+		heuristics[0] = mptcp_switch_heuristic_create(options.nBytes_change);
 
 	if(len > heuristics[0]->value) {
 		mptcp_switch_heuristic_apply(heuristics[0], 0);
