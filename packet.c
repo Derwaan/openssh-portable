@@ -97,9 +97,6 @@
 
 #define PACKET_MAX_SIZE (256 * 1024)
 
-/* Importing options */
-extern Options options;
-
 struct packet_state {
 	u_int32_t seqnr;
 	u_int32_t packets;
@@ -232,7 +229,11 @@ struct session_state {
 	TAILQ_HEAD(, packet) outgoing;
 };
 
+/* ssh.c */
+extern Options options;
+
 #ifdef MPTCP_GET_SUB_IDS
+
 struct mptcp_switch_heuristic {
 	unsigned int value;
 	unsigned int reset;
@@ -2349,7 +2350,7 @@ ssh_packet_write_poll(struct ssh *ssh)
 	}
 #ifdef MPTCP_GET_SUB_IDS
 	if(heuristics[0] == NULL)
-		heuristics[0] = mptcp_switch_heuristic_create(options.nBytes_change);
+		heuristics[0] = mptcp_switch_heuristic_create(options.mptcp_switch_nBytes);
 
 	if(len > heuristics[0]->value) {
 		mptcp_switch_heuristic_apply(heuristics[0], 0);
