@@ -227,10 +227,13 @@ struct session_state {
 	void *hook_in_ctx;
 
 	TAILQ_HEAD(, packet) outgoing;
-};
 
-/* ssh.c */
-extern Options options;
+#ifdef MPTCP_GET_SUB_IDS
+
+	int mptcp_switch_nBytes;
+	int mptcp_switch_time;
+#endif
+};
 
 #ifdef MPTCP_GET_SUB_IDS
 
@@ -256,6 +259,7 @@ ssh_alloc_session_state(void)
 {
 	struct ssh *ssh = NULL;
 	struct session_state *state = NULL;
+	struct mptcp_heuristics *mptcp_state = NULL;
 
 	if ((ssh = calloc(1, sizeof(*ssh))) == NULL ||
 	    (state = calloc(1, sizeof(*state))) == NULL ||
@@ -264,6 +268,11 @@ ssh_alloc_session_state(void)
 	    (state->outgoing_packet = sshbuf_new()) == NULL ||
 	    (state->incoming_packet = sshbuf_new()) == NULL)
 		goto fail;
+#ifdef MPTCP_GET_SUB_IDS
+	if((mptcp_state = calloc(1,sizeof(*mptcp_state)))==NULL)
+		goto fail;
+	ssh->mptcp_state = mptcp_state;
+#endif
 	TAILQ_INIT(&state->outgoing);
 	TAILQ_INIT(&ssh->private_keys);
 	TAILQ_INIT(&ssh->public_keys);
@@ -288,6 +297,10 @@ ssh_alloc_session_state(void)
 		sshbuf_free(state->outgoing_packet);
 		free(state);
 	}
+#ifdef MPTCP_GET_SUB_IDS
+	if(mptcp_state) 
+		free(mptcp_state);
+#endif
 	free(ssh);
 	return NULL;
 }
@@ -2350,7 +2363,7 @@ ssh_packet_write_poll(struct ssh *ssh)
 	}
 #ifdef MPTCP_GET_SUB_IDS
 	if(heuristics[0] == NULL)
-		heuristics[0] = mptcp_switch_heuristic_create(options.mptcp_switch_nBytes);
+		heuristics[0] = mptcp_switch_heuristic_create(state->mptcp_switch_nBytes);
 
 	if(len > heuristics[0]->value) {
 		mptcp_switch_heuristic_apply(heuristics[0], 0);

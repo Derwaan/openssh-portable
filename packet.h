@@ -76,6 +76,13 @@ struct ssh {
 
 	/* APP data */
 	void *app_data;
+
+	struct mptcp_heuristics *mptcp_state;
+};
+
+struct mptcp_heuristics {
+	/* Number of byte before changing of subflow */
+	int mptcp_switch_nBytes;
 };
 
 typedef int (ssh_packet_hook_fn)(struct ssh *, struct sshbuf *,
@@ -219,5 +226,4 @@ extern struct ssh *active_state;
 # undef EC_GROUP
 # undef EC_POINT
 #endif
-
 #endif				/* PACKET_H */
