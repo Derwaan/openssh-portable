@@ -2206,7 +2206,7 @@ mptcp_switch_debug(char* content)
  * reset value.
  */
 static struct mptcp_switch_heuristic *
-mptcp_switch_heuristic_create(int reset)
+mptcp_switch_heuristic_create(unsigned int reset)
 {
 	struct mptcp_switch_heuristic *heuristic = NULL;
 	if((heuristic = calloc(1,sizeof(*heuristic))) == NULL)
@@ -2237,7 +2237,6 @@ static int
 mptcp_switch_heuristic_check(struct mptcp_switch_heuristic *heuristic)
 {
 	mptcp_switch_debug("Check heuristic");
-	debug("[MPTCP] value of the heuristic : %d\n",heuristic->value);
 	return heuristic->value != 0;
 }
 
@@ -2361,7 +2360,7 @@ ssh_packet_write_poll(struct ssh *ssh)
 	}
 #ifdef MPTCP_GET_SUB_IDS
 	if(heuristics[0] == NULL){
-		if((heuristics[BYTECOUNT] = mptcp_switch_heuristic_create(mptcp_state->mptcp_switch_nBytes)) == NULL){
+		if((heuristics[BYTECOUNT] = mptcp_switch_heuristic_create(mptcp_state->mptcp_switch_nBytes)) == NULL) {
 			mptcp_switch_debug("Can't allocate memory for a new heuristic.");
 			/* TODO handle case where no memory is available via an error message? */
 			return 0;

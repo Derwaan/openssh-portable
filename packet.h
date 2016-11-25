@@ -80,10 +80,12 @@ struct ssh {
 	struct mptcp_heuristics *mptcp_state;
 };
 
+#ifdef MPTCP_GET_SUB_IDS
 struct mptcp_heuristics {
 	/* Number of byte before changing of subflow */
 	int mptcp_switch_nBytes;
 };
+#endif
 
 typedef int (ssh_packet_hook_fn)(struct ssh *, struct sshbuf *,
     u_char *, void *);
