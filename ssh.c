@@ -946,8 +946,7 @@ main(int ac, char **av)
 			break;
 #endif
 		default:
-			if(*optarg != '-')
-				usage();
+			usage();
 		}
 	}
 

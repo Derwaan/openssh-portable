@@ -1857,11 +1857,6 @@ initialize_options(Options * options)
 	options->update_hostkeys = -1;
 	options->hostbased_key_types = NULL;
 	options->pubkey_key_types = NULL;
-#ifdef MPTCP_GET_SUB_IDS
-	options->mptcp_switch_want_mptcp = -1;
-	options->mptcp_switch_nBytes = -1;
-	options->mptcp_switch_time = -1;
-#endif
 }
 
 /*
@@ -2074,14 +2069,6 @@ fill_default_options(Options * options)
 	/* options->hostname will be set in the main program if appropriate */
 	/* options->host_key_alias should not be set by default */
 	/* options->preferred_authentications will be set in ssh */
-#ifdef MPTCP_GET_SUB_IDS
-	if(options->mptcp_switch_want_mptcp == -1)
-		options->mptcp_switch_want_mptcp = 1;
-	if(options->mptcp_switch_nBytes == -1)
-		options->mptcp_switch_nBytes = 500;
-	if(options->mptcp_switch_time == -1)
-		options->mptcp_switch_time == 15;
-#endif
 }
 
 struct fwdarg {
