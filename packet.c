@@ -238,11 +238,9 @@ struct mptcp_switch_heuristic {
 };
 
 typedef enum {
-	BYTECOUNT = 0, /* Nombre de byte envoyé avant de changer de flux */
+	BYTECOUNT = 0, /* Number of byte before switching subflow */
 } mptcp_switch_options;
 
-/* TODO Allow to change the reset value with command-lines options. */
-#define MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT 100
 #define MPTCP_SWITCH_HEURISTIC_COUNT 1
 
 struct mptcp_switch_heuristic *heuristics[MPTCP_SWITCH_HEURISTIC_COUNT];
