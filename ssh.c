@@ -71,6 +71,7 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <linux/tcp.h>
 
 #ifdef WITH_OPENSSL
 #include <openssl/evp.h>
@@ -529,6 +530,9 @@ main(int ac, char **av)
 	sanitise_stdfd();
 
 	__progname = ssh_get_progname(av[0]);
+#ifdef MPTCP_GET_SUB_IDS
+	int mptcp_switch_nBytes_tmp = 500; /* Setting this value to default value */
+#endif
 
 #ifndef HAVE_SETPROCTITLE
 	/* Prepare for later setproctitle emulation */
@@ -605,7 +609,7 @@ main(int ac, char **av)
 
  again:
 	while ((opt = getopt(ac, av, "1246ab:c:e:fgi:kl:m:no:p:qstvx"
-	    "ACD:E:F:GI:J:KL:MNO:PQ:R:S:TVw:W:XYy")) != -1) {
+	    "ACD:E:F:GI:J:KL:MNO:PQ:R:S:TVw:W:XYyB:")) != -1) {
 		switch (opt) {
 		case '1':
 			options.protocol = SSH_PROTO_1;
@@ -930,6 +934,17 @@ main(int ac, char **av)
 		case 'F':
 			config = optarg;
 			break;
+		case 'B':
+#ifdef MPTCP_GET_SUB_IDS
+			if(atoi(optarg) > 0)
+				mptcp_switch_nBytes_tmp = atoi(optarg);
+			else
+				fatal("Bad argument for B ( <= 0 )");
+			break;
+#else
+			debug("No support for MPTCP. Options ignored");
+			break;
+#endif
 		default:
 			usage();
 		}
@@ -1276,6 +1291,10 @@ main(int ac, char **av)
 	    options.server_alive_count_max);
 
 	ssh = active_state; /* XXX */
+#ifdef MPTCP_GET_SUB_IDS
+	ssh->mptcp_state->mptcp_switch_nBytes = mptcp_switch_nBytes_tmp;
+	debug("[MPTCP] Using %d bytes as value for nBytes",ssh->mptcp_state->mptcp_switch_nBytes);
+#endif
 
 	if (timeout_ms > 0)
 		debug3("timeout: %d ms remain after connect", timeout_ms);

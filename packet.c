@@ -87,6 +87,7 @@
 #include "packet.h"
 #include "ssherr.h"
 #include "sshbuf.h"
+#include "readconf.h"
 
 #ifdef PACKET_DEBUG
 #define DBG(x) x
@@ -226,16 +227,20 @@ struct session_state {
 	void *hook_in_ctx;
 
 	TAILQ_HEAD(, packet) outgoing;
+
 };
 
 #ifdef MPTCP_GET_SUB_IDS
+
 struct mptcp_switch_heuristic {
 	unsigned int value;
 	unsigned int reset;
 };
 
-/* TODO Allow to change the reset value with command-lines options. */
-#define MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT 100
+typedef enum {
+	BYTECOUNT = 0, /* Number of byte before switching subflow */
+} mptcp_switch_options;
+
 #define MPTCP_SWITCH_HEURISTIC_COUNT 1
 
 struct mptcp_switch_heuristic *heuristics[MPTCP_SWITCH_HEURISTIC_COUNT];
@@ -247,6 +252,7 @@ ssh_alloc_session_state(void)
 {
 	struct ssh *ssh = NULL;
 	struct session_state *state = NULL;
+	struct mptcp_heuristics *mptcp_state = NULL;
 
 	if ((ssh = calloc(1, sizeof(*ssh))) == NULL ||
 	    (state = calloc(1, sizeof(*state))) == NULL ||
@@ -255,6 +261,11 @@ ssh_alloc_session_state(void)
 	    (state->outgoing_packet = sshbuf_new()) == NULL ||
 	    (state->incoming_packet = sshbuf_new()) == NULL)
 		goto fail;
+#ifdef MPTCP_GET_SUB_IDS
+	if((mptcp_state = calloc(1,sizeof(*mptcp_state)))==NULL)
+		goto fail;
+	ssh->mptcp_state = mptcp_state;
+#endif
 	TAILQ_INIT(&state->outgoing);
 	TAILQ_INIT(&ssh->private_keys);
 	TAILQ_INIT(&ssh->public_keys);
@@ -279,6 +290,10 @@ ssh_alloc_session_state(void)
 		sshbuf_free(state->outgoing_packet);
 		free(state);
 	}
+#ifdef MPTCP_GET_SUB_IDS
+	if(mptcp_state) 
+		free(mptcp_state);
+#endif
 	free(ssh);
 	return NULL;
 }
@@ -2191,11 +2206,10 @@ mptcp_switch_debug(char* content)
 static struct mptcp_switch_heuristic *
 mptcp_switch_heuristic_create(unsigned int reset)
 {
-	unsigned int optlen;
-	struct mptcp_switch_heuristic *heuristic;
+	struct mptcp_switch_heuristic *heuristic = NULL;
+	if((heuristic = calloc(1,sizeof(*heuristic))) == NULL)
+		return NULL;
 
-	optlen = sizeof(struct mptcp_switch_heuristic);
-	heuristic = malloc(optlen);
 	heuristic->reset = reset;
 	heuristic->value = reset;
 
@@ -2322,6 +2336,9 @@ int
 ssh_packet_write_poll(struct ssh *ssh)
 {
 	struct session_state *state = ssh->state;
+#ifdef MPTCP_GET_SUB_IDS
+	struct mptcp_heuristics *mptcp_state = ssh->mptcp_state;
+#endif
 	int len = sshbuf_len(state->output);
 	int r;
 
@@ -2340,13 +2357,18 @@ ssh_packet_write_poll(struct ssh *ssh)
 			return r;
 	}
 #ifdef MPTCP_GET_SUB_IDS
-	if(heuristics[0] == NULL)
-		heuristics[0] = mptcp_switch_heuristic_create(MPTCP_SWITCH_HEURISTIC_VALUE_DEFAULT);
+	if(heuristics[0] == NULL){
+		if((heuristics[BYTECOUNT] = mptcp_switch_heuristic_create(mptcp_state->mptcp_switch_nBytes)) == NULL) {
+			mptcp_switch_debug("Can't allocate memory for a new heuristic.");
+			/* TODO handle case where no memory is available via an error message? */
+			return 0;
+		}
+	}
 
-	if(len > heuristics[0]->value) {
-		mptcp_switch_heuristic_apply(heuristics[0], 0);
+	if(len > heuristics[BYTECOUNT]->value) {
+		mptcp_switch_heuristic_apply(heuristics[BYTECOUNT], 0);
 	} else {
-		mptcp_switch_heuristic_apply(heuristics[0], heuristics[0]->value - len);
+		mptcp_switch_heuristic_apply(heuristics[BYTECOUNT], heuristics[BYTECOUNT]->value - len);
 	}
 	mptcp_switch_subflow(ssh, heuristics);
 #endif

@@ -1,4 +1,4 @@
-/* $OpenBSD: readconf.h,v 1.117 2016/07/15 00:24:30 djm Exp $ */
+/* $OPENbSD: readconf.h,v 1.117 2016/07/15 00:24:30 djm Exp $ */
 
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
@@ -169,6 +169,7 @@ typedef struct {
 	char   *jump_extra;
 
 	char	*ignored_unknown; /* Pattern list of unknown tokens to ignore */
+
 }       Options;
 
 #define SSH_CANONICALISE_NO	0
