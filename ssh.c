@@ -531,7 +531,8 @@ main(int ac, char **av)
 
 	__progname = ssh_get_progname(av[0]);
 #ifdef MPTCP_GET_SUB_IDS
-	int mptcp_switch_nBytes_tmp = 500; /* Setting this value to default value */
+	int mptcp_switch_nBytes_default = 500; /* Default value */
+	int mptcp_switch_timeout_default = 15; /* Default value */
 #endif
 
 #ifndef HAVE_SETPROCTITLE
@@ -609,7 +610,7 @@ main(int ac, char **av)
 
  again:
 	while ((opt = getopt(ac, av, "1246ab:c:e:fgi:kl:m:no:p:qstvx"
-	    "ACD:E:F:GI:J:KL:MNO:PQ:R:S:TVw:W:XYyB:")) != -1) {
+	    "ACD:E:F:GI:J:KL:MNO:PQ:R:S:TVw:W:XYyB:d:")) != -1) {
 		switch (opt) {
 		case '1':
 			options.protocol = SSH_PROTO_1;
@@ -937,12 +938,23 @@ main(int ac, char **av)
 		case 'B':
 #ifdef MPTCP_GET_SUB_IDS
 			if(atoi(optarg) > 0)
-				mptcp_switch_nBytes_tmp = atoi(optarg);
+				mptcp_switch_nBytes_default = atoi(optarg);
 			else
 				fatal("Bad argument for B ( <= 0 )");
 			break;
 #else
-			debug("No support for MPTCP. Options ignored");
+			debug("No support for MPTCP. Option ignored");
+			break;
+#endif
+		case 'd':
+#ifdef MPTCP_GET_SUB_IDS
+			if(atoi(optarg) > 0)
+				mptcp_switch_timeout_default = atoi(optarg);
+			else
+				fatal("Bad argument for d ( <= 0)");
+			break;
+#else
+			debug("No support for MPTCP. Option ignored");
 			break;
 #endif
 		default:
@@ -1292,8 +1304,12 @@ main(int ac, char **av)
 
 	ssh = active_state; /* XXX */
 #ifdef MPTCP_GET_SUB_IDS
-	ssh->mptcp_state->mptcp_switch_nBytes = mptcp_switch_nBytes_tmp;
+	ssh->mptcp_state->mptcp_switch_nBytes = mptcp_switch_nBytes_default;
+	ssh->mptcp_state->mptcp_count_nBytes = 0;
 	debug("[MPTCP] Using %d bytes as value for nBytes",ssh->mptcp_state->mptcp_switch_nBytes);
+	ssh->mptcp_state->mptcp_switch_timeout = mptcp_switch_timeout_default;
+	debug("[MPTCP] Using %d seconds as value for timeout",ssh->mptcp_state->mptcp_switch_timeout);
+	ssh->mptcp_state->last_send = time(NULL);
 #endif
 
 	if (timeout_ms > 0)

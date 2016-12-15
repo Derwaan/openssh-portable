@@ -230,23 +230,6 @@ struct session_state {
 
 };
 
-#ifdef MPTCP_GET_SUB_IDS
-
-struct mptcp_switch_heuristic {
-	unsigned int value;
-	unsigned int reset;
-};
-
-typedef enum {
-	BYTECOUNT = 0, /* Number of byte before switching subflow */
-} mptcp_switch_options;
-
-#define MPTCP_SWITCH_HEURISTIC_COUNT 1
-
-struct mptcp_switch_heuristic *heuristics[MPTCP_SWITCH_HEURISTIC_COUNT];
-
-#endif
-
 struct ssh *
 ssh_alloc_session_state(void)
 {
@@ -2200,70 +2183,12 @@ mptcp_switch_debug(char* content)
 }
 
 /*
- * Create a new mptcp_switch_heuristic with
- * reset value.
- */
-static struct mptcp_switch_heuristic *
-mptcp_switch_heuristic_create(unsigned int reset)
-{
-	struct mptcp_switch_heuristic *heuristic = NULL;
-	if((heuristic = calloc(1,sizeof(*heuristic))) == NULL)
-		return NULL;
-
-	heuristic->reset = reset;
-	heuristic->value = reset;
-
-	mptcp_switch_debug("Creation of a new heuristic");
-
-	return heuristic;
-}
-
-/*
- * Reset the heuristic.
+ * Switch the MPTCP subflow 
  */
 static void
-mptcp_switch_heuristic_reset(struct mptcp_switch_heuristic *heuristic)
+mptcp_switch_subflow(struct ssh* ssh)
 {
-	heuristic->value = heuristic->reset;
-	mptcp_switch_debug("Reset the heuristic");
-}
-
-/*
- * Check if the heuristic's condition is filled.
- */
-static int
-mptcp_switch_heuristic_check(struct mptcp_switch_heuristic *heuristic)
-{
-	mptcp_switch_debug("Check heuristic");
-	return heuristic->value != 0;
-}
-
-/*
- * Apply a new value to the heuristic.
- */
-static void
-mptcp_switch_heuristic_apply(struct mptcp_switch_heuristic *heuristic, unsigned int new_value)
-{
-	heuristic->value = new_value;
-	mptcp_switch_debug("Change the value of the heuristic");
-}
-
-/*
- * Apply a new value to the heuristic.
- */
-static void
-mptcp_switch_heuristic_change(struct mptcp_switch_heuristic *heuristic, unsigned int new_reset)
-{
-	heuristic->reset = new_reset;
-	mptcp_switch_debug("Change the reset value of the heuristic");
-}
-
-/*
- * Switch the MPTCP subflow if the heuristic is filled.
- */
-static void
-mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[])
-{
+	mptcp_switch_debug("Switching subflow");
 	int i, old_id;
 	unsigned int optlen;
 	struct session_state *state = ssh->state;
@@ -2272,23 +2197,18 @@ mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[
 	struct sockaddr_in* addr;
 	struct mptcp_close_sub_id *close_sub;
 
-	for (i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
-		if(mptcp_switch_heuristic_check(heuristics[i]))
-			return;
-	}
-
-	// Reset the heuristic size
-	for (i = 0; i < MPTCP_SWITCH_HEURISTIC_COUNT; i++) {
-		mptcp_switch_heuristic_reset(heuristics[i]);
-	}
-
 	// Get old id of the MPTCP subflow
 	optlen = 64;
-	ids = malloc(optlen);
-
-	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_GET_SUB_IDS, ids, &optlen) == -1)
+	if((ids = calloc(1,optlen)) == NULL) {
+		mptcp_switch_debug("Can't allocate memory to ids");
 		return;
+	}
 
+	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_GET_SUB_IDS, ids, &optlen) == -1) {
+		debug("[MPTCP] Error %d : %s\n",errno,strerror(errno));
+		free(ids);
+		return;
+	}
 	old_id = ids->sub_status[0].id;
 	free(ids);
 	mptcp_switch_debug("Get old subflow");
@@ -2308,8 +2228,11 @@ mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[
 	addr->sin_port = htons(ssh->remote_port); 
 	inet_pton(AF_INET, ssh->remote_ipaddr, &addr->sin_addr);
 
-	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_OPEN_SUB_TUPLE, open_sub, &optlen) == -1)
+	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_OPEN_SUB_TUPLE, open_sub, &optlen) == -1){
+		debug("[MPTCP] Error %d : %s\n",errno,strerror(errno));
+		free(open_sub);
 		return;
+	}
 
 	free(open_sub);
 	mptcp_switch_debug("Create new subflow");
@@ -2319,10 +2242,14 @@ mptcp_switch_subflow(struct ssh* ssh, struct mptcp_switch_heuristic *heuristics[
 	close_sub = malloc(optlen);
 	close_sub->id = old_id;
 
-	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_CLOSE_SUB_ID, close_sub, &optlen) == -1)
+	if (getsockopt(state->connection_out, IPPROTO_TCP, MPTCP_CLOSE_SUB_ID, close_sub, &optlen) == -1){
+		debug("[MPTCP] Error %d : %s\n",errno,strerror(errno));
+		free(close_sub);
 		return;
+	}
 
 	free(close_sub);
+	ssh->mptcp_state->last_send = time(NULL);
 	mptcp_switch_debug("Remove old subflow");
 }
 
@@ -2353,25 +2280,20 @@ ssh_packet_write_poll(struct ssh *ssh)
 		}
 		if (len == 0)
 			return SSH_ERR_CONN_CLOSED;
+#ifdef MPTCP_GET_SUB_IDS
+		mptcp_state->mptcp_count_nBytes += len;
+		if(mptcp_state->mptcp_count_nBytes >= mptcp_state->mptcp_switch_nBytes) {
+			mptcp_switch_subflow(ssh);
+			mptcp_state->mptcp_count_nBytes = 0;
+		}
+		if(time(NULL) - mptcp_state->last_send > mptcp_state->mptcp_switch_timeout) {
+			mptcp_switch_subflow(ssh);
+			mptcp_state->last_send = time(NULL);
+		}
+#endif
 		if ((r = sshbuf_consume(state->output, len)) != 0)
 			return r;
 	}
-#ifdef MPTCP_GET_SUB_IDS
-	if(heuristics[0] == NULL){
-		if((heuristics[BYTECOUNT] = mptcp_switch_heuristic_create(mptcp_state->mptcp_switch_nBytes)) == NULL) {
-			mptcp_switch_debug("Can't allocate memory for a new heuristic.");
-			/* TODO handle case where no memory is available via an error message? */
-			return 0;
-		}
-	}
-
-	if(len > heuristics[BYTECOUNT]->value) {
-		mptcp_switch_heuristic_apply(heuristics[BYTECOUNT], 0);
-	} else {
-		mptcp_switch_heuristic_apply(heuristics[BYTECOUNT], heuristics[BYTECOUNT]->value - len);
-	}
-	mptcp_switch_subflow(ssh, heuristics);
-#endif
 	return 0;
 }
 
