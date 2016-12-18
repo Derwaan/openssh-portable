@@ -211,7 +211,6 @@ const u_char	*sshpkt_ptr(struct ssh *, size_t *lenp);
 /* MPTCP Switch */
 #ifdef MPTCP_SWITCH_GET_IDS
 
-static void	 mptcp_switch_debug(char *);
 static void	 mptcp_switch_subflow(struct ssh*);
 
 #endif

@@ -2176,19 +2176,13 @@ ssh_packet_disconnect(struct ssh *ssh, const char *fmt,...)
 
 #ifdef MPTCP_GET_SUB_IDS
 
-static void
-mptcp_switch_debug(char* content)
-{
-	debug("[MPTCP] %s", content);
-}
-
 /*
  * Switch the MPTCP subflow 
  */
 static void
 mptcp_switch_subflow(struct ssh* ssh)
 {
-	mptcp_switch_debug("Switching subflow");
+	debug("[MPTCP] Switching subflow");
 	int i, old_id;
 	unsigned int optlen;
 	struct session_state *state = ssh->state;
@@ -2200,7 +2194,7 @@ mptcp_switch_subflow(struct ssh* ssh)
 	// Get old id of the MPTCP subflow
 	optlen = 64;
 	if((ids = calloc(1,optlen)) == NULL) {
-		mptcp_switch_debug("Can't allocate memory to ids");
+		debug("Can't allocate memory to ids. Will not change subflow");
 		return;
 	}
 
@@ -2211,7 +2205,6 @@ mptcp_switch_subflow(struct ssh* ssh)
 	}
 	old_id = ids->sub_status[0].id;
 	free(ids);
-	mptcp_switch_debug("Get old subflow");
 
 	// Open new MPTCP subflow
 	optlen = sizeof(struct mptcp_sub_tuple) + 2 * sizeof(struct sockaddr_in);
@@ -2235,7 +2228,7 @@ mptcp_switch_subflow(struct ssh* ssh)
 	}
 
 	free(open_sub);
-	mptcp_switch_debug("Create new subflow");
+	debug("[MPTCP] New subflow created correctly");
 
 	// Remove old MPTCP subflow
 	optlen = sizeof(struct mptcp_close_sub_id);
@@ -2250,7 +2243,7 @@ mptcp_switch_subflow(struct ssh* ssh)
 
 	free(close_sub);
 	ssh->mptcp_state->last_send = time(NULL);
-	mptcp_switch_debug("Remove old subflow");
+	debug("[MPTCP] Old subflow removed correctly");
 }
 
 #endif
