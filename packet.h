@@ -76,14 +76,20 @@ struct ssh {
 
 	/* APP data */
 	void *app_data;
-
+#ifdef MPTCP_GET_SUB_IDS
 	struct mptcp_heuristics *mptcp_state;
+#endif
 };
 
 #ifdef MPTCP_GET_SUB_IDS
+#include <time.h>
 struct mptcp_heuristics {
 	/* Number of byte before changing of subflow */
 	int mptcp_switch_nBytes;
+	int mptcp_count_nBytes;
+	/* Maximum number of second a subflow will live */
+	int mptcp_switch_timeout;
+	time_t last_send;
 };
 #endif
 
@@ -205,12 +211,7 @@ const u_char	*sshpkt_ptr(struct ssh *, size_t *lenp);
 /* MPTCP Switch */
 #ifdef MPTCP_SWITCH_GET_IDS
 
-static void	 mptcp_switch_debug(char *);
-static struct mptcp_switch_heuristic	*mptcp_switch_heuristic_create(unsigned int);
-static void	 mptcp_switch_heuristic_reset(struct mptcp_switch_heuristic*);
-static void	 mptcp_switch_heuristic_apply(struct mptcp_switch_heuristic*, unsigned int);
-static void	 mptcp_switch_heuristic_change(struct mptcp_switch_heuristic*, unsigned int);
-static void	 mptcp_switch_subflow(struct ssh*, struct mptcp_switch_heuristic**);
+static void	 mptcp_switch_subflow(struct ssh*);
 
 #endif
 
